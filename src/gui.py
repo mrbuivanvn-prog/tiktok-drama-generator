@@ -333,7 +333,7 @@ class TikTokDramaGUI:
             messagebox.showwarning("Cảnh báo", "Chưa có thư mục video!")
     
     def _play_selected_video(self):
-        """Play selected video with default player."""
+        """Play selected video with VLC if available, otherwise fallback."""
         selection = self.videos_listbox.curselection()
         if not selection:
             messagebox.showwarning("Cảnh báo", "Chưa chọn video!")
@@ -342,14 +342,32 @@ class TikTokDramaGUI:
         index = selection[0]
         if index < len(self.video_paths):
             video_path = self.video_paths[index]
-            if video_path and video_path != "/dummy/path.mp4":
-                try:
-                    subprocess.run(['xdg-open', video_path], check=False)
-                    self.preview_label.config(text=f"Đang mở: {Path(video_path).name}")
-                except Exception as e:
-                    messagebox.showerror("Lỗi", f"Không thể mở video:\n{e}")
-            else:
+            if not video_path or video_path == "/dummy/path.mp4":
                 messagebox.showinfo("Thông báo", "Video này chưa được tạo thật (placeholder)")
+                return
+            
+            candidates = [
+                "vlc",
+                "ffplay",
+                "mpv",
+            ]
+            player = None
+            for candidate in candidates:
+                try:
+                    if subprocess.run(["which", candidate], stdout=subprocess.PIPE, stderr=subprocess.PIPE).returncode == 0:
+                        player = candidate
+                        break
+                except Exception:
+                    continue
+            
+            try:
+                if player:
+                    subprocess.Popen([player, video_path])
+                else:
+                    subprocess.Popen(["xdg-open", video_path])
+                self.preview_label.config(text=f"Đang mở: {Path(video_path).name}")
+            except Exception as e:
+                messagebox.showerror("Lỗi", f"Không thể mở video:\n{e}")
     
     def run(self):
         """Run the application."""

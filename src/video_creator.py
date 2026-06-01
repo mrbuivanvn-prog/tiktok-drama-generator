@@ -99,14 +99,26 @@ class VideoCreator:
 
             video = CompositeVideoClip([bg_clip, txt_clip])
 
+            write_kwargs = {
+                'fps': self.fps,
+                'codec': 'libx264',
+                'remove_temp': True,
+            }
+
+            if self.enable_background_music and self.background_music_path and os.path.exists(self.background_music_path):
+                audio_clip = AudioFileClip(self.background_music_path).subclip(0, self.duration)
+                audio_clip = audio_clip.volumex(0.3)
+                video = video.set_audio(audio_clip)
+                write_kwargs['audio_codec'] = 'aac'
+                write_kwargs['temp_audiofile'] = 'temp-audio.m4a'
+
             video.write_videofile(
                 str(output_path),
-                fps=self.fps,
-                codec='libx264',
-                audio_codec='aac',
-                temp_audiofile='temp-audio.m4a',
-                remove_temp=True
+                **write_kwargs
             )
+
+            if 'audio_clip' in locals():
+                audio_clip.close()
 
             return str(output_path)
 
