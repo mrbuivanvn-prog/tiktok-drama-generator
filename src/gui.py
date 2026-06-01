@@ -8,28 +8,18 @@ from datetime import datetime
 import subprocess
 import sys
 from typing import Optional
-
-from .utils import load_config, save_data, get_today_string, VideoIdea, TrendItem
-from .generator import IdeaGenerator
-from .fetcher import (
-    GoogleTrendsFetcher,
-    RedditFetcher,
-    TwitterFetcher,
-    WebScrapingFetcher,
-)
-from .video_creator import VideoCreator
+from src.utils import logger
+from src.generator import IdeaGenerator, fetch_all_trends
+from src.video_creator import VideoCreator
 
 
 class TikTokDramaGUI:
-    """Main GUI application for TikTok Drama Generator."""
-    
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title("TikTok Drama Generator")
-        self.root.geometry("900x700")
+        self.root.title("TikTok Drama Generator - Quét Tin Hot & Tạo Video")
+        self.root.geometry("1000x750")
         self.root.configure(bg='#1a1a2e')
-        
-        # Configure style
+
         self.style = ttk.Style()
         self.style.theme_use('clam')
         self.style.configure('TFrame', background='#1a1a2e')
@@ -37,25 +27,17 @@ class TikTokDramaGUI:
         self.style.configure('TButton', font=('Arial', 10, 'bold'))
         self.style.configure('Header.TLabel', font=('Arial', 16, 'bold'), foreground='#ff6b6b')
         self.style.configure('Subheader.TLabel', font=('Arial', 12), foreground='#4ecdc4')
-        
-         # Data
+
         self.config = load_config()
+        self.current_trends = []
         self.current_ideas = []
         self.video_paths = []
-        self.selected_sources = {
-            'google_trends': tk.BooleanVar(value=self.config.get('sources', {}).get('google_trends', {}).get('enabled', False)),
-            'reddit': tk.BooleanVar(value=self.config.get('sources', {}).get('reddit', {}).get('enabled', False)),
-            'twitter': tk.BooleanVar(value=self.config.get('sources', {}).get('twitter', {}).get('enabled', False)),
-            'facebook': tk.BooleanVar(value=self.config.get('sources', {}).get('facebook', {}).get('enabled', False)),
-            'web_scraping': tk.BooleanVar(value=self.config.get('sources', {}).get('web_scraping', {}).get('enabled', True)),
-        }
 
         self._configure_icon()
         self._build_ui()
         self._load_today_data()
 
     def _configure_icon(self):
-        """Set app icon if available."""
         icon_path = Path('assets/icon.png')
         if icon_path.exists():
             try:
@@ -63,294 +45,289 @@ class TikTokDramaGUI:
                 self.root.iconphoto(True, img)
             except Exception:
                 pass
-    
+
     def _build_ui(self):
-        """Build the GUI interface."""
         # Header
         header_frame = ttk.Frame(self.root)
         header_frame.pack(fill='x', padx=20, pady=10)
-        
         ttk.Label(header_frame, text="🎬 TikTok Drama Generator", style='Header.TLabel').pack()
-        ttk.Label(header_frame, text="Tạo video TikTok tự động từ trend hằng ngày", style='Subheader.TLabel').pack(pady=2)
-        
+        ttk.Label(header_frame, text="Quét tin hot từ mạng xã hội & Tạo video TikTok hàng ngày", style='Subheader.TLabel').pack(pady=2)
+
         # Main container
         main_frame = ttk.Frame(self.root)
         main_frame.pack(fill='both', expand=True, padx=20, pady=10)
-        
+
         # Left panel - Controls
-        left_panel = ttk.Frame(main_frame, width=250)
+        left_panel = ttk.Frame(main_frame, width=280)
         left_panel.pack(side='left', fill='y', padx=(0, 10))
         left_panel.pack_propagate(False)
-        
-        ttk.Label(left_panel, text="📋 Controls", font=('Arial', 12, 'bold'), foreground='#4ecdc4').pack(anchor='w', pady=(0, 10))
-        
+
+        ttk.Label(left_panel, text="📋 Điều khiển", font=('Arial', 12, 'bold'), foreground='#4ecdc4').pack(anchor='w', pady=(0, 10))
+
         # Date selector
         date_frame = ttk.Frame(left_panel)
         date_frame.pack(fill='x', pady=5)
-        ttk.Label(date_frame, text="Ngày:").pack(anchor='w')
+        ttk.Label(date_frame, text="📅 Ngày:").pack(anchor='w')
         self.date_var = tk.StringVar(value=get_today_string())
         date_entry = ttk.Entry(date_frame, textvariable=self.date_var, width=15)
         date_entry.pack(fill='x', pady=2)
 
-        # Social media source selection
-        ttk.Label(left_panel, text="🌐 Nguồn tìm trend / drama:", font=('Arial', 11, 'bold'), foreground='#4ecdc4').pack(anchor='w', pady=(15, 5))
+        # Social media sources
+        ttk.Label(left_panel, text="🌐 Nguồn tin hot:", font=('Arial', 11, 'bold'), foreground='#4ecdc4').pack(anchor='w', pady=(15, 5))
         sources_frame = ttk.Frame(left_panel)
         sources_frame.pack(fill='x', pady=5)
+        self.selected_sources = {
+            'google_trends': tk.BooleanVar(value=False),
+            'reddit': tk.BooleanVar(value=False),
+            'twitter': tk.BooleanVar(value=False),
+            'facebook': tk.BooleanVar(value=False),
+            'rss': tk.BooleanVar(value=True),
+            'web_scraping': tk.BooleanVar(value=True),
+        }
         ttk.Checkbutton(sources_frame, text="Google Trends", variable=self.selected_sources['google_trends']).pack(anchor='w')
         ttk.Checkbutton(sources_frame, text="Reddit", variable=self.selected_sources['reddit']).pack(anchor='w')
         ttk.Checkbutton(sources_frame, text="X (Twitter)", variable=self.selected_sources['twitter']).pack(anchor='w')
         ttk.Checkbutton(sources_frame, text="Facebook", variable=self.selected_sources['facebook']).pack(anchor='w')
+        ttk.Checkbutton(sources_frame, text="RSS báo Việt Nam", variable=self.selected_sources['rss']).pack(anchor='w')
         ttk.Checkbutton(sources_frame, text="Web scraping", variable=self.selected_sources['web_scraping']).pack(anchor='w')
-        
+
         # Buttons
         btn_frame = ttk.Frame(left_panel)
-        btn_frame.pack(fill='x', pady=10)
-        
-        ttk.Button(btn_frame, text="🔄 Tạo trend mới", command=self._generate_new).pack(fill='x', pady=2)
-        ttk.Button(btn_frame, text="🎥 Tạo video", command=self._create_videos).pack(fill='x', pady=2)
-        ttk.Button(btn_frame, text="📂 Mở thư mục video", command=self._open_video_folder).pack(fill='x', pady=2)
-        ttk.Button(btn_frame, text="🔃 Reload", command=self._load_today_data).pack(fill='x', pady=2)
-        
+        btn_frame.pack(fill='x', pady=15)
+
+        ttk.Button(btn_frame, text="🔥 Quét tin hot ngay", command=self._scan_trends).pack(fill='x', pady=3)
+        ttk.Button(btn_frame, text="📝 Tạo kịch bản & Tóm tắt", command=self._generate_scripts).pack(fill='x', pady=3)
+        ttk.Button(btn_frame, text="🎬 Tạo video từ tin hot", command=self._create_videos).pack(fill='x', pady=3)
+        ttk.Button(btn_frame, text="📂 Mở thư mục video", command=self._open_video_folder).pack(fill='x', pady=3)
+        ttk.Button(btn_frame, text="🔃 Reload dữ liệu", command=self._load_today_data).pack(fill='x', pady=3)
+
         # Status
-        ttk.Label(left_panel, text="📊 Status", font=('Arial', 12, 'bold'), foreground='#4ecdc4').pack(anchor='w', pady=(20, 5))
-        self.status_label = ttk.Label(left_panel, text="Ready", foreground='#95e1d3')
+        ttk.Label(left_panel, text="📊 Trạng thái", font=('Arial', 12, 'bold'), foreground='#4ecdc4').pack(anchor='w', pady=(20, 5))
+        self.status_label = ttk.Label(left_panel, text="Sẵn sàng", foreground='#95e1d3')
         self.status_label.pack(anchor='w')
-        
+
+        self.progress = ttk.Progressbar(left_panel, mode='determinate', length=240)
+        self.progress.pack(pady=10)
+
         # Right panel - Content
         right_panel = ttk.Frame(main_frame)
         right_panel.pack(side='right', fill='both', expand=True)
-        
-        # Notebook for tabs
+
         self.notebook = ttk.Notebook(right_panel)
         self.notebook.pack(fill='both', expand=True)
-        
-        # Ideas tab
-        ideas_tab = ttk.Frame(self.notebook)
-        self.notebook.add(ideas_tab, text='💡 Video Ideas')
-        
-        ttk.Label(ideas_tab, text="Danh sách ý tưởng video hôm nay:", font=('Arial', 11, 'bold')).pack(anchor='w', pady=5, padx=5)
-        
-        # Ideas list with scrollbar
-        ideas_list_frame = ttk.Frame(ideas_tab)
-        ideas_list_frame.pack(fill='both', expand=True, padx=5, pady=5)
-        
-        scrollbar = ttk.Scrollbar(ideas_list_frame)
+
+        # Trends tab
+        trends_tab = ttk.Frame(self.notebook)
+        self.notebook.add(trends_tab, text='🔥 Tin Hot / Trends')
+
+        ttk.Label(trends_tab, text="Danh sách tin hot vừa quét:", font=('Arial', 11, 'bold')).pack(anchor='w', pady=5, padx=5)
+        trends_list_frame = ttk.Frame(trends_tab)
+        trends_list_frame.pack(fill='both', expand=True, padx=5, pady=5)
+        scrollbar = ttk.Scrollbar(trends_list_frame)
         scrollbar.pack(side='right', fill='y')
-        
-        self.ideas_listbox = tk.Listbox(ideas_list_frame, yscrollcommand=scrollbar.set, bg='#16213e', fg='white',
-                                        font=('Arial', 10), selectbackground='#0f3460', selectforeground='white',
-                                        relief='flat', bd=0, highlightthickness=0)
-        self.ideas_listbox.pack(fill='both', expand=True)
-        scrollbar.config(command=self.ideas_listbox.yview)
-        
+        self.trends_listbox = tk.Listbox(trends_list_frame, yscrollcommand=scrollbar.set, bg='#16213e', fg='white',
+                                         font=('Arial', 10), selectbackground='#0f3460', selectforeground='white',
+                                         relief='flat', bd=0, highlightthickness=0, height=15)
+        self.trends_listbox.pack(fill='both', expand=True)
+        scrollbar.config(command=self.trends_listbox.yview)
+
+        # Scripts tab
+        scripts_tab = ttk.Frame(self.notebook)
+        self.notebook.add(scripts_tab, text='📝 Kịch bản & Tóm tắt')
+
+        ttk.Label(scripts_tab, text="Kịch bản video được tóm tắt từ tin hot:", font=('Arial', 11, 'bold')).pack(anchor='w', pady=5, padx=5)
+        scripts_list_frame = ttk.Frame(scripts_tab)
+        scripts_list_frame.pack(fill='both', expand=True, padx=5, pady=5)
+        scrollbar2 = ttk.Scrollbar(scripts_list_frame)
+        scrollbar2.pack(side='right', fill='y')
+        self.scripts_listbox = tk.Listbox(scripts_list_frame, yscrollcommand=scrollbar2.set, bg='#16213e', fg='white',
+                                          font=('Arial', 10), selectbackground='#0f3460', selectforeground='white',
+                                          relief='flat', bd=0, highlightthickness=0, height=15)
+        self.scripts_listbox.pack(fill='both', expand=True)
+        scrollbar2.config(command=self.scripts_listbox.yview)
+
         # Videos tab
         videos_tab = ttk.Frame(self.notebook)
-        self.notebook.add(videos_tab, text='🎥 Videos')
-        
-        ttk.Label(videos_tab, text="Danh sách video đã tạo:", font=('Arial', 11, 'bold')).pack(anchor='w', pady=5, padx=5)
-        
+        self.notebook.add(videos_tab, text='🎥 Video TikTok')
+
+        ttk.Label(videos_tab, text="Video đã tạo:", font=('Arial', 11, 'bold')).pack(anchor='w', pady=5, padx=5)
         videos_list_frame = ttk.Frame(videos_tab)
         videos_list_frame.pack(fill='both', expand=True, padx=5, pady=5)
-        
-        scrollbar2 = ttk.Scrollbar(videos_list_frame)
-        scrollbar2.pack(side='right', fill='y')
-        
-        self.videos_listbox = tk.Listbox(videos_list_frame, yscrollcommand=scrollbar2.set, bg='#16213e', fg='white',
+        scrollbar3 = ttk.Scrollbar(videos_list_frame)
+        scrollbar3.pack(side='right', fill='y')
+        self.videos_listbox = tk.Listbox(videos_list_frame, yscrollcommand=scrollbar3.set, bg='#16213e', fg='white',
                                          font=('Arial', 10), selectbackground='#0f3460', selectforeground='white',
-                                         relief='flat', bd=0, highlightthickness=0)
+                                         relief='flat', bd=0, highlightthickness=0, height=10)
         self.videos_listbox.pack(fill='both', expand=True)
-        scrollbar2.config(command=self.videos_listbox.yview)
-        
-        # Video preview frame
+        scrollbar3.config(command=self.videos_listbox.yview)
+
         preview_frame = ttk.Frame(videos_tab)
         preview_frame.pack(fill='x', pady=5)
-        
         self.preview_label = ttk.Label(preview_frame, text="Chọn video để xem", foreground='#888')
         self.preview_label.pack()
-        
         ttk.Button(preview_frame, text="▶️ Mở video", command=self._play_selected_video).pack(pady=5)
-    
+
     def _load_today_data(self):
-        """Load today's ideas and videos."""
         date_str = self.date_var.get()
-        
-        # Load ideas
+        # Load trends
+        trends_path = Path(f"data/trends/trends_{date_str}.json")
+        if trends_path.exists():
+            import json
+            with open(trends_path, 'r', encoding='utf-8') as f:
+                trends_data = json.load(f)
+            self.trends_listbox.delete(0, tk.END)
+            self.current_trends = []
+            for i, t in enumerate(trends_data, 1):
+                topic = t.get('topic', 'N/A')
+                source = t.get('source', '')
+                self.trends_listbox.insert(tk.END, f"{i}. [{source}] {topic}")
+                self.current_trends.append(t)
+            self.status_label.config(text=f"✅ {len(trends_data)} tin hot")
+        else:
+            self.trends_listbox.delete(0, tk.END)
+            self.trends_listbox.insert(tk.END, "Chưa có tin hot cho ngày này. Nhấn 'Quét tin hot ngay'")
+            self.status_label.config(text="⚠️ Chưa có dữ liệu")
+
+        # Load scripts
         ideas_path = Path(f"data/ideas/ideas_{date_str}.json")
         if ideas_path.exists():
             import json
             with open(ideas_path, 'r', encoding='utf-8') as f:
                 ideas_data = json.load(f)
-            
-            self.ideas_listbox.delete(0, tk.END)
+            self.scripts_listbox.delete(0, tk.END)
             self.current_ideas = []
-            
-            for i, idea_data in enumerate(ideas_data, 1):
-                text = f"{i}. {idea_data.get('idea', 'N/A')}"
-                self.ideas_listbox.insert(tk.END, text)
-                self.current_ideas.append(idea_data)
-            
-            self.status_label.config(text=f"✅ Đã load {len(ideas_data)} ý tưởng")
-        else:
-            self.ideas_listbox.delete(0, tk.END)
-            self.ideas_listbox.insert(tk.END, "Chưa có dữ liệu cho ngày này")
-            self.status_label.config(text="⚠️ Không có dữ liệu")
-        
+            for i, idea in enumerate(ideas_data, 1):
+                text = idea.get('idea', 'N/A')
+                self.scripts_listbox.insert(tk.END, f"{i}. {text}")
+                self.current_ideas.append(idea)
+
         # Load videos
         videos_path = Path(f"data/videos/videos_{date_str}.json")
         if videos_path.exists():
             import json
             with open(videos_path, 'r', encoding='utf-8') as f:
                 videos_data = json.load(f)
-            
             self.videos_listbox.delete(0, tk.END)
             self.video_paths = []
-            
-            for i, video_data in enumerate(videos_data, 1):
-                path = video_data.get('path', '')
-                idea_text = video_data.get('idea', 'Unknown')
-                text = f"{i}. {Path(path).name} - {idea_text[:40]}..."
-                self.videos_listbox.insert(tk.END, text)
+            for i, v in enumerate(videos_data, 1):
+                path = v.get('path', '')
+                idea = v.get('idea', 'Unknown')
+                self.videos_listbox.insert(tk.END, f"{i}. {Path(path).name}")
                 self.video_paths.append(path)
-            
-            self.status_label.config(text=f"✅ Đã load {len(videos_data)} video")
-        else:
-            self.videos_listbox.delete(0, tk.END)
-            self.videos_listbox.insert(tk.END, "Chưa có video cho ngày này")
-    
-    def _generate_new(self):
-        """Generate new trends and ideas."""
-        self.status_label.config(text="🔄 Đang tạo trend...")
+
+    def _scan_trends(self):
+        self.status_label.config(text="🔥 Đang quét tin hot...")
+        self.progress['value'] = 20
         self.root.update()
 
         try:
             selected = {name: var.get() for name, var in self.selected_sources.items()}
-            active_sources = [name for name, flag in selected.items() if flag]
-
-            if not active_sources:
-                messagebox.showwarning("Cảnh báo", "Hãy chọn ít nhất 1 nguồn tìm trend / drama.")
+            active = [name for name, flag in selected.items() if flag]
+            if not active:
+                messagebox.showwarning("Cảnh báo", "Hãy chọn ít nhất 1 nguồn tin!")
                 self.status_label.config(text="⚠️ Chưa chọn nguồn")
                 return
 
-            fetcher_map = {
-                'google_trends': GoogleTrendsFetcher,
-                'reddit': RedditFetcher,
-                'twitter': TwitterFetcher,
-                'facebook': FacebookFetcher,
-                'web_scraping': WebScrapingFetcher,
-            }
+            self.progress['value'] = 40
+            self.root.update()
 
-            trends = []
-            for source_name in active_sources:
-                try:
-                    fetcher = fetcher_map[source_name](self.config)
-                    trends.extend(fetcher.fetch())
-                except Exception as fetch_error:
-                    messagebox.showerror("Lỗi nguồn", f"Lỗi lấy trend từ {source_name}:\n{fetch_error}")
-                    self.status_label.config(text="❌ Lỗi nguồn")
-                    return
-
+            trends = fetch_all_trends(self.config)
             if not trends:
-                from .utils import TrendItem
-                fallback_topics = [
-                    "Drama hot hôm nay", "Xu hướng TikTok Việt Nam",
-                    "Giai trí 24h", "Sao Việt đang nói gì?", "Xu hướng mạng hôm nay"
+                from src.utils import TrendItem
+                fallbacks = [
+                    "Bóng đá Việt Nam đang thi đấu thành công?",
+                    "Học sinh lớp 10 chuẩn bị kỳ thi quan trọng",
+                    "Giá xăng dầu biến động mạnh",
+                    "Sao Việt gây sốt với phong cách mới",
+                    "Xu hướng mạng xã hội hôm nay",
                 ]
-                trends = [TrendItem(topic=t, source="fallback", score=70) for t in fallback_topics]
-            
-            # Generate ideas
-            generator = IdeaGenerator(self.config)
-            self.current_ideas = [idea.to_dict() for idea in generator.generate_ideas(trends, count=5)]
-            
-            # Update display
-            self.ideas_listbox.delete(0, tk.END)
-            for i, idea in enumerate(self.current_ideas, 1):
-                self.ideas_listbox.insert(tk.END, f"{i}. {idea['idea']}")
-            
-            self.status_label.config(text=f"✅ Đã tạo {len(self.current_ideas)} ý tưởng")
-            messagebox.showinfo("Thành công", f"Đã tạo {len(self.current_ideas)} ý tưởng video từ {', '.join(active_sources)}!")
-            
+                trends = [TrendItem(topic=t, source="fallback", score=60) for t in fallbacks]
+
+            self.progress['value'] = 70
+            self.root.update()
+
+            self.current_trends = [t if isinstance(t, dict) else t.to_dict() for t in trends]
+            self.trends_listbox.delete(0, tk.END)
+            for i, t in enumerate(self.current_trends, 1):
+                topic = t.get('topic', 'N/A') if isinstance(t, dict) else str(t)
+                source = t.get('source', '') if isinstance(t, dict) else ''
+                self.trends_listbox.insert(tk.END, f"{i}. [{source}] {topic}")
+
+            self.progress['value'] = 100
+            self.status_label.config(text=f"✅ Quét được {len(trends)} tin hot")
+            messagebox.showinfo("Thành công", f"Đã quét được {len(trends)} tin hot từ {', '.join(active)}!")
         except Exception as e:
-            messagebox.showerror("Lỗi", f"Không thể tạo trend:\n{e}")
+            messagebox.showerror("Lỗi", f"Không thể quét tin:\n{e}")
             self.status_label.config(text="❌ Lỗi")
-    
-    def _create_videos(self):
-        """Create videos from current ideas."""
-        if not self.current_ideas:
-            messagebox.showwarning("Cảnh báo", "Chưa có ý tưởng video! Hãy tạo trend trước.")
+        finally:
+            self.progress['value'] = 0
+
+    def _generate_scripts(self):
+        if not self.current_trends:
+            messagebox.showwarning("Cảnh báo", "Hãy quét tin hot trước!")
             return
-        
-        self.status_label.config(text="🎥 Đang tạo video...")
+
+        self.status_label.config(text="📝 Đang tóm tắt...")
         self.root.update()
-        
+
         try:
-            # Convert dict back to VideoIdea objects
-            from .utils import VideoIdea, TrendItem
-            
-            ideas = []
-            for idea_data in self.current_ideas:
-                trend_data = idea_data.get('source_trend', {})
-                trend = TrendItem(
-                    topic=trend_data.get('topic', ''),
-                    source=trend_data.get('source', ''),
-                    score=trend_data.get('score', 0),
-                    metadata=trend_data.get('metadata', {})
-                )
-                idea = VideoIdea(
-                    idea=idea_data['idea'],
-                    source_trend=trend,
-                    template_used=idea_data.get('template_used')
-                )
-                ideas.append(idea)
-            
-            # Create videos
-            creator = VideoCreator(self.config)
-            self.video_paths = creator.create_videos_from_ideas(ideas, prefix="daily")
-            
-            # Update display
+            from src.summarizer import build_script
+            scripts = build_script(self.current_trends)
+
+            self.scripts_listbox.delete(0, tk.END)
+            self.current_ideas = []
+            for i, s in enumerate(scripts, 1):
+                text = f"{s['headline']}\n   → {s['script']}"
+                self.scripts_listbox.insert(tk.END, text)
+                self.current_ideas.append(s)
+
+            self.status_label.config(text=f"✅ Đã tạo {len(scripts)} kịch bản")
+        except Exception as e:
+            messagebox.showerror("Lỗi", f"Không thể tạo kịch bản:\n{e}")
+
+    def _create_videos(self):
+        if not self.current_trends:
+            messagebox.showwarning("Cảnh báo", "Hãy quét tin hot trước!")
+            return
+
+        self.status_label.config(text="🎬 Đang tạo video...")
+        self.progress['value'] = 10
+        self.root.update()
+
+        try:
+            from src.advanced_video_creator import create_news_videos
+            self.video_paths = create_news_videos(self.current_trends[:5], self.config)
+
             self.videos_listbox.delete(0, tk.END)
             for i, path in enumerate(self.video_paths, 1):
-                if path and path != "/dummy/path.mp4":
-                    self.videos_listbox.insert(tk.END, f"{i}. {Path(path).name}")
-                else:
-                    self.videos_listbox.insert(tk.END, f"{i}. [Video placeholder]")
-            
+                self.videos_listbox.insert(tk.END, f"{i}. {Path(path).name}")
+
+            self.progress['value'] = 100
             self.status_label.config(text=f"✅ Đã tạo {len(self.video_paths)} video")
-            messagebox.showinfo("Thành công", f"Đã tạo {len(self.video_paths)} video!")
-            
+            messagebox.showinfo("Thành công", f"Đã tạo {len(self.video_paths)} video TikTok!")
         except Exception as e:
             messagebox.showerror("Lỗi", f"Không thể tạo video:\n{e}")
-            self.status_label.config(text="❌ Lỗi")
-    
+        finally:
+            self.progress['value'] = 0
+
     def _open_video_folder(self):
-        """Open the videos folder in file manager."""
         videos_dir = Path("data/videos").absolute()
         if videos_dir.exists():
             try:
                 subprocess.run(['xdg-open', str(videos_dir)], check=False)
             except Exception:
                 messagebox.showinfo("Thư mục video", str(videos_dir))
-        else:
-            messagebox.showwarning("Cảnh báo", "Chưa có thư mục video!")
-    
+
     def _play_selected_video(self):
-        """Play selected video with VLC if available, otherwise fallback."""
         selection = self.videos_listbox.curselection()
         if not selection:
             messagebox.showwarning("Cảnh báo", "Chưa chọn video!")
             return
-        
+
         index = selection[0]
         if index < len(self.video_paths):
             video_path = self.video_paths[index]
-            if not video_path or video_path == "/dummy/path.mp4":
-                messagebox.showinfo("Thông báo", "Video này chưa được tạo thật (placeholder)")
-                return
-            
-            candidates = [
-                "vlc",
-                "ffplay",
-                "mpv",
-            ]
+            candidates = ["vlc", "ffplay", "mpv"]
             player = None
             for candidate in candidates:
                 try:
@@ -359,7 +336,7 @@ class TikTokDramaGUI:
                         break
                 except Exception:
                     continue
-            
+
             try:
                 if player:
                     subprocess.Popen([player, video_path])
@@ -368,14 +345,12 @@ class TikTokDramaGUI:
                 self.preview_label.config(text=f"Đang mở: {Path(video_path).name}")
             except Exception as e:
                 messagebox.showerror("Lỗi", f"Không thể mở video:\n{e}")
-    
+
     def run(self):
-        """Run the application."""
         self.root.mainloop()
 
 
 def main():
-    """Launch the GUI."""
     app = TikTokDramaGUI()
     app.run()
 

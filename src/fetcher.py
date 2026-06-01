@@ -37,10 +37,11 @@ class GoogleTrendsFetcher(TrendFetcher):
     
     def __init__(self, config):
         super().__init__(config)
-        self.enabled = config.get('google_trends', {}).get('enabled', False)
-        self.keywords = config.get('google_trends', {}).get('keywords', [])
-        self.geo = config.get('google_trends', {}).get('geo', 'VN')
-        self.timeframe = config.get('google_trends', {}).get('timeframe', 'now 1-d')
+        settings = config.get('sources', {}).get('google_trends', {})
+        self.enabled = settings.get('enabled', False)
+        self.keywords = settings.get('keywords', [])
+        self.geo = settings.get('geo', 'VN')
+        self.timeframe = settings.get('timeframe', 'now 1-d')
     
     def fetch(self) -> List[TrendItem]:
         if not self.enabled or not self.keywords:
@@ -82,9 +83,10 @@ class RedditFetcher(TrendFetcher):
     
     def __init__(self, config):
         super().__init__(config)
-        self.enabled = config.get('reddit', {}).get('enabled', False)
-        self.subreddits = config.get('reddit', {}).get('subreddits', [])
-        self.limit = config.get('reddit', {}).get('limit', 25)
+        settings = config.get('sources', {}).get('reddit', {})
+        self.enabled = settings.get('enabled', False)
+        self.subreddits = settings.get('subreddits', [])
+        self.limit = settings.get('limit', 25)
     
     def fetch(self) -> List[TrendItem]:
         if not self.enabled or not self.subreddits:
@@ -124,10 +126,11 @@ class TwitterFetcher(TrendFetcher):
     
     def __init__(self, config):
         super().__init__(config)
-        self.enabled = config.get('twitter', {}).get('enabled', False)
-        self.keywords = config.get('twitter', {}).get('keywords', [])
-        self.lang = config.get('twitter', {}).get('lang', 'vi')
-        self.count = config.get('twitter', {}).get('count', 50)
+        settings = config.get('sources', {}).get('twitter', {})
+        self.enabled = settings.get('enabled', False)
+        self.keywords = settings.get('keywords', [])
+        self.lang = settings.get('lang', 'vi')
+        self.count = settings.get('count', 50)
     
     def fetch(self) -> List[TrendItem]:
         if not self.enabled or not self.keywords:
@@ -168,8 +171,9 @@ class WebScrapingFetcher(TrendFetcher):
     
     def __init__(self, config):
         super().__init__(config)
-        self.enabled = config.get('web_scraping', {}).get('enabled', False)
-        self.sites = config.get('web_scraping', {}).get('sites', [])
+        settings = config.get('sources', {}).get('web_scraping', {})
+        self.enabled = settings.get('enabled', False)
+        self.sites = settings.get('sites', [])
     
     def fetch(self) -> List[TrendItem]:
         if not self.enabled or not self.sites:
@@ -222,9 +226,14 @@ class WebScrapingFetcher(TrendFetcher):
                     
                     headlines = list(dict.fromkeys(headlines))[:10]
                     
+                    drama_keywords = [
+                        'drama', 'hot', 'trend', 'viral', 'tiktok', 'giai tri', 'sao', 'phim', 'nhac', 'video',
+                        'chung ket', 'tuyen sinh', 'thi cu', 'dien vien', 'ca si', 'streamer', 'mang xa hoi',
+                        'bien dong', 'gay tranh cai', 'netizen', 'clip', 'hallmark', 'thinh hanh', 'xuat hien',
+                    ]
                     for headline in headlines:
-                        if any(keyword in headline.lower() for keyword in 
-                               ['drama', 'hot', 'trend', 'viral', 'tiktok', 'giai tri', 'sao']):
+                        lower = headline.lower()
+                        if any(keyword in lower for keyword in drama_keywords) or len(headline) >= 12:
                             item = self._create_trend_item(
                                 topic=headline,
                                 score=random.randint(60, 95),
@@ -255,9 +264,10 @@ class FacebookFetcher(TrendFetcher):
     
     def __init__(self, config):
         super().__init__(config)
-        self.enabled = config.get('facebook', {}).get('enabled', False)
-        self.pages = config.get('facebook', {}).get('pages', [])
-        self.access_token = config.get('facebook', {}).get('access_token', '')
+        settings = config.get('sources', {}).get('facebook', {})
+        self.enabled = settings.get('enabled', False)
+        self.pages = settings.get('pages', [])
+        self.access_token = settings.get('access_token', '')
     
     def fetch(self) -> List[TrendItem]:
         if not self.enabled:
@@ -340,11 +350,12 @@ def create_fetcher(fetcher_type: str, config: Dict) -> TrendFetcher:
 def fetch_all_trends(config: Dict) -> List[TrendItem]:
     """Fetch trends from all enabled sources."""
     all_trends = []
+    sources = config.get('sources', {})
     
     fetcher_types = ['google_trends', 'reddit', 'twitter', 'facebook', 'web_scraping']
     
     for fetcher_type in fetcher_types:
-        fetcher_config = config.get(fetcher_type, {})
+        fetcher_config = sources.get(fetcher_type, {})
         if fetcher_config.get('enabled', False):
             try:
                 fetcher = create_fetcher(fetcher_type, config)

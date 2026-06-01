@@ -9,18 +9,14 @@ from src.generator import main as run_generator
 
 def setup_logging():
     """Setup logging configuration."""
-    # Remove default logger
-    logger.remove()
-    
-    # Add console logger
-    logger.add(
+    from loguru import logger as log
+    log.remove()
+    log.add(
         sys.stdout,
         format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
         level="INFO"
     )
-    
-    # Add file logger
-    logger.add(
+    log.add(
         "logs/app.log",
         rotation="10 MB",
         retention="1 week",
@@ -32,11 +28,9 @@ def setup_logging():
 def main():
     """Main application entry point."""
     setup_logging()
-    
     logger.info("=" * 50)
     logger.info("TikTok Drama Generator Starting")
     logger.info("=" * 50)
-    
     try:
         run_generator()
         logger.info("Application completed successfully")

@@ -24,18 +24,21 @@
         {"name": "Example Page", "id": "page_id_here"}
       ]
     },
-    "web_scraping": {
+    "rss": {
       "enabled": true,
+      "feeds": [
+        {"name": "Zing News", "url": "https://znews.vn/rss"},
+        {"name": "VietNamNet", "url": "https://vietnamnet.vn/rss/trang-chat.rss"},
+        {"name": "Tuoi Tre", "url": "https://tuoitre.vn/rss/trang-chat.rss"}
+      ]
+    },
+    "web_scraping": {
+      "enabled": false,
       "sites": [
         {
           "name": "Zing News",
-          "url": "https://zingnews.vn/",
-          "section": "giai-tri"
-        },
-        {
-          "name": "VietNamNet",
-          "url": "https://vietnamnet.vn/",
-          "section": "giai-tri"
+          "url": "https://znews.vn/",
+          "section": ""
         }
       ]
     }
