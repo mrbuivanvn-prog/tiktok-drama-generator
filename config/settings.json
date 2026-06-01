@@ -1,0 +1,69 @@
+{
+  "sources": {
+    "google_trends": {
+      "enabled": false,
+      "keywords": ["drama", "tiktok", "trending"],
+      "geo": "VN",
+      "timeframe": "now 1-d"
+    },
+    "reddit": {
+      "enabled": false,
+      "subreddits": ["drama", "tiktok", "Vietnam"],
+      "limit": 25
+    },
+    "twitter": {
+      "enabled": false,
+      "keywords": ["drama", "tiktok", "hot"],
+      "lang": "vi",
+      "count": 50
+    },
+    "web_scraping": {
+      "enabled": true,
+      "sites": [
+        {
+          "name": "Zing News",
+          "url": "https://zingnews.vn/",
+          "section": "giai-tri"
+        },
+        {
+          "name": "VietNamNet",
+          "url": "https://vietnamnet.vn/",
+          "section": "giai-tri"
+        }
+      ]
+    }
+  },
+  "generation": {
+    "video_style": "short_form",
+    "max_duration_seconds": 60,
+    "language": "vi",
+    "templates": [
+      "Xu hướng {topic} ngày hôm nay - bạn có biết không?",
+      "3 điều surprenant về {topic} mà ít người biết",
+      "Tại sao {topic} lại hot trên mạng?",
+      "Réaksi cộng đồng wobec {topic}",
+      "{topic} - xu hướng đến đỉnh?",
+      "Bạn có cùng xu hướng {topic} không?",
+      "Phân tích xu hướng {topic} trong 60 giây"
+    ]
+  },
+  "output": {
+    "save_raw_trends": true,
+    "save_generated_ideas": true,
+    "idea_format": "txt"
+  },
+    "video_creation": {
+    "enabled": true,
+    "duration_seconds": 3,
+    "resolution": [1080, 1920],
+    "fps": 24,
+    "background_color": "#1a1a2e",
+    "text_color": "#ffffff",
+    "font_size": 70,
+    "font": "",
+    "enable_fade": true,
+    "fade_duration": 0.5,
+    "enable_background_music": false,
+    "background_music_path": ""
+  }
+}
