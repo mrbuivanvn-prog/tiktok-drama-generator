@@ -13,6 +13,10 @@ from .utils import VideoIdea
 from .image_fetcher import ImageFetcher
 from .summarizer import summarize_headline
 
+# MoviePy v2 imports as specified
+from moviepy import ImageClip, TextClip, ColorClip, CompositeVideoClip, AudioFileClip
+from moviepy.video.fx import FadeIn, FadeOut, Resize
+
 
 class AdvancedVideoCreator:
     """Creates advanced videos with images, text, and music."""
@@ -35,10 +39,6 @@ class AdvancedVideoCreator:
         logger.info(f"AdvancedVideoCreator initialized: {self.resolution}, {self.duration}s")
     
     def create_video_from_idea(self, idea: VideoIdea, output_filename: str = None) -> str:
-        from moviepy import ImageClip, TextClip, ColorClip, CompositeVideoClip
-        from moviepy.audio import AudioFileClip
-        from moviepy.video.fx import FadeIn, FadeOut, Resize
-
         if output_filename is None:
             safe_text = "".join(c if c.isalnum() else "_" for c in idea.idea[:30])
             timestamp = idea.timestamp.replace(":", "-").replace(" ", "_")
@@ -51,21 +51,22 @@ class AdvancedVideoCreator:
             
             if image_path and Path(image_path).exists():
                 logger.info(f"Using image: {image_path}")
-                video_clip = ImageClip(image_path, duration=self.duration)
+                video_clip = ImageClip(image_path)
                 img_w, img_h = video_clip.size
                 target_w, target_h = self.resolution
                 if img_w != target_w or img_h != target_h:
                     scale = max(target_w / img_w, target_h / img_h)
                     new_size = (int(img_w * scale), int(img_h * scale))
-                    video_clip = Resize(video_clip, newsize=new_size)
+                    video_clip = video_clip.with_effects([Resize(new_size)])
                     x_center = video_clip.w // 2
                     y_center = video_clip.h // 2
                     x1 = x_center - target_w // 2
                     y1 = y_center - target_h // 2
                     video_clip = video_clip.crop(x1=x1, y1=y1, width=target_w, height=target_h)
+                video_clip = video_clip.with_duration(self.duration)
             else:
                 logger.warning("No image available, using solid background")
-                video_clip = ColorClip(size=self.resolution, color=(26, 26, 46), duration=self.duration)
+                video_clip = ColorClip(size=self.resolution, color=(26, 26, 46)).with_duration(self.duration)
             
             headline = idea.idea
             if hasattr(idea, 'source_trend') and idea.source_trend:
@@ -75,37 +76,36 @@ class AdvancedVideoCreator:
             
             headline_text = self._wrap_text(headline, 38)
             headline_clip = TextClip(
+                font=None,
                 text=headline_text,
                 font_size=50,
                 color='#FFE400',
-                font='Arial-Bold',
                 method='caption',
                 size=(self.resolution[0] - 40, 320)
             ).with_duration(self.duration * 0.4).with_position(('center', 120))
             
             script_text = self._wrap_text(script, 38)
             script_clip = TextClip(
+                font=None,
                 text=script_text,
                 font_size=34,
                 color='#FFFFFF',
-                font='Arial',
                 method='caption',
                 size=(self.resolution[0] - 40, 700)
             ).with_duration(self.duration * 0.6).with_position(('center', 520)).with_start(self.duration * 0.4)
             
-            header_bar = ColorClip(size=(self.resolution[0], 380), color=(0, 0, 0), duration=self.duration * 0.4).with_opacity(0.6).with_position(('center', 60))
-            footer_bar = ColorClip(size=(self.resolution[0], 720), color=(0, 0, 0), duration=self.duration * 0.6).with_opacity(0.7).with_position(('center', 460)).with_start(self.duration * 0.4)
+            header_bar = ColorClip(size=(self.resolution[0], 380), color=(0, 0, 0)).with_duration(self.duration * 0.4).with_opacity(0.6).with_position(('center', 60))
+            footer_bar = ColorClip(size=(self.resolution[0], 720), color=(0, 0, 0)).with_duration(self.duration * 0.6).with_opacity(0.7).with_position(('center', 460)).with_start(self.duration * 0.4)
             
             final = CompositeVideoClip([video_clip, header_bar, headline_clip, footer_bar, script_clip])
             
             audio = None
             if self.enable_background_music and self.background_music_path and os.path.exists(self.background_music_path):
                 try:
-                    audio = AudioFileClip(self.background_music_path).subclip(0, self.duration)
+                    audio = AudioFileClip(self.background_music_path).subclipped(0, self.duration)
                     audio = audio.volumex(0.3)
-                    audio_fade = FadeIn(audio, 0.5)
-                    audio_fade = FadeOut(audio_fade, 0.5)
-                    final = final.with_audio(audio_fade)
+                    audio = audio.with_effects([FadeIn(0.5), FadeOut(0.5)])
+                    final = final.with_audio(audio)
                 except Exception as e:
                     logger.warning(f"Could not add audio: {e}")
             
@@ -114,8 +114,7 @@ class AdvancedVideoCreator:
                 fps=self.fps,
                 codec='libx264',
                 temp_audiofile='temp-audio.m4a',
-                remove_temp=True,
-                verbose=False
+                remove_temp=True
             )
             
             final.close()
@@ -125,7 +124,7 @@ class AdvancedVideoCreator:
             
             logger.info(f"Video created: {output_path}")
             return str(output_path)
-            
+        
         except Exception as e:
             logger.error(f"Error creating video: {e}")
             raise

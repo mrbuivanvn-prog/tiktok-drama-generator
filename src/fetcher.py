@@ -9,6 +9,7 @@ from typing import List, Dict, Any
 from .utils import logger, TrendItem, save_data, load_data
 import json
 import os
+import feedparser
 
 
 class TrendFetcher:
@@ -330,6 +331,43 @@ class FacebookFetcher(TrendFetcher):
             return []
 
 
+class RSSFetcher(TrendFetcher):
+    """Fetch trends from RSS feeds."""
+    
+    def __init__(self, config):
+        super().__init__(config)
+        settings = config.get('sources', {}).get('rss', {})
+        self.enabled = settings.get('enabled', False)
+        self.feeds = settings.get('feeds', [])
+    
+    def fetch(self) -> List[TrendItem]:
+        if not self.enabled or not self.feeds:
+            return []
+        try:
+            trends = []
+            for feed in self.feeds:
+                feed_name = feed.get('name', 'Unknown')
+                feed_url = feed.get('url', '')
+                if not feed_url:
+                    continue
+                logger.info(f"Fetching RSS feed: {feed_name} from {feed_url}")
+                parsed = feedparser.parse(feed_url)
+                for entry in parsed.entries:
+                    title = entry.get('title', '').strip()
+                    if title:
+                        item = self._create_trend_item(
+                            topic=title,
+                            score=random.randint(50, 90),
+                            metadata={'feed': feed_name, 'url': feed_url, 'source': 'rss'}
+                        )
+                        trends.append(item)
+            logger.info(f"Fetched {len(trends)} trends from RSS feeds")
+            return trends
+        except Exception as e:
+            logger.error(f"Error fetching RSS feeds: {e}")
+            return []
+
+
 def create_fetcher(fetcher_type: str, config: Dict) -> TrendFetcher:
     """Factory function to create fetcher instances."""
     fetchers = {
@@ -337,7 +375,8 @@ def create_fetcher(fetcher_type: str, config: Dict) -> TrendFetcher:
         'reddit': RedditFetcher,
         'twitter': TwitterFetcher,
         'facebook': FacebookFetcher,
-        'web_scraping': WebScrapingFetcher
+        'web_scraping': WebScrapingFetcher,
+        'rss': RSSFetcher
     }
     
     fetcher_class = fetchers.get(fetcher_type)
@@ -352,7 +391,7 @@ def fetch_all_trends(config: Dict) -> List[TrendItem]:
     all_trends = []
     sources = config.get('sources', {})
     
-    fetcher_types = ['google_trends', 'reddit', 'twitter', 'facebook', 'web_scraping']
+    fetcher_types = ['google_trends', 'reddit', 'twitter', 'facebook', 'web_scraping', 'rss']
     
     for fetcher_type in fetcher_types:
         fetcher_config = sources.get(fetcher_type, {})

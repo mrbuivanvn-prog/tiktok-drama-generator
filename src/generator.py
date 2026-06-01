@@ -17,7 +17,7 @@ class IdeaGenerator:
             "Xu hướng {topic} ngày hôm nay - bạn có biết không?",
             "3 điều sorprendente về {topic} mà ít người biết",
             "Tại sao {topic} lại hot trên mạng?",
-            "Réaksi cộng đồng wobec {topic}",
+            "Réaksi cộng đồng envers {topic}",
             "{topic} - xu hướng đến đỉnh?",
             "Bạn có cùng xu hướng {topic} không?",
             "Phân tích xu hướng {topic} trong 60 giây"
@@ -37,19 +37,19 @@ class IdeaGenerator:
         elif self.language == 'en':
             # Convert to English (simplified)
             idea = idea.replace("Xu hướng", "Trend")\
-                       .replace("ngày hôm nay", "today")\
-                       .replace("bạn có biết không?", "did you know?")\
-                       .replace("3 điều sorprendente", "3 surprising facts")\
-                       .replace("ít người biết", "few people know")\
-                       .replace("Tại sao", "Why")\
-                       .replace("lại hot trên mạng", "is trending online")\
-                       .replace("Réaksi cộng đồng", "Community reaction")\
-                       .replace("về", "about")\
-                       .replace("xu hướng đến đỉnh?", "trend peaking?")\
-                       .replace("Bạn có cùng", "Are you also")\
-                       .replace("không?", "?")\
-                       .replace("Phân tích", "Analyze")\
-                       .replace("trong 60 giây", "in 60 seconds")
+                        .replace("ngày hôm nay", "today")\
+                        .replace("bạn có biết không?", "did you know?")\
+                        .replace("3 điều surprenant", "3 surprising facts")\
+                        .replace("ít người biết", "few people know")\
+                        .replace("Tại sao", "Why")\
+                        .replace("lại hot trên mạng", "is trending online")\
+                        .replace("Réaksi cộng đồng", "Community reaction")\
+                        .replace("về", "about")\
+                        .replace("xu hướng đến đỉnh?", "trend peaking?")\
+                        .replace("Bạn có cùng", "Are you also")\
+                        .replace("không?", "?")\
+                        .replace("Phân tích", "Analyze")\
+                        .replace("trong 60 giây", "in 60 seconds")
         
         return VideoIdea(
             idea=idea,
@@ -159,8 +159,17 @@ def main():
     # Create videos if enabled
     video_creation_config = config.get('video_creation', {})
     if video_creation_config.get('enabled', False):
-        logger.info("Creating videos from generated ideas...")
-        video_paths = create_daily_videos(ideas, config)
+        logger.info("Creating videos from generated ideas using advanced video creator...")
+        from .advanced_video_creator import AdvancedVideoCreator
+        creator = AdvancedVideoCreator(config)
+        video_paths = []
+        for i, idea in enumerate(ideas):
+            try:
+                path = creator.create_video_from_idea(idea, f"news_slide_{i+1}")
+                video_paths.append(path)
+            except Exception as e:
+                logger.error(f"Failed to create video for idea {i}: {e}")
+                continue
         
         # Save video paths
         output_config = config.get('output', {})

@@ -51,7 +51,7 @@
       "Xu hướng {topic} ngày hôm nay - bạn có biết không?",
       "3 điều surprenant về {topic} mà ít người biết",
       "Tại sao {topic} lại hot trên mạng?",
-      "Réaksi cộng đồng wobec {topic}",
+      "Réaksi cộng đồng envers {topic}",
       "{topic} - xu hướng đến đỉnh?",
       "Bạn có cùng xu hướng {topic} không?",
       "Phân tích xu hướng {topic} trong 60 giây"
@@ -64,7 +64,7 @@
   },
   "video_creation": {
     "enabled": true,
-    "duration_seconds": 3,
+    "duration_seconds": 5,
     "resolution": [1080, 1920],
     "fps": 24,
     "background_color": "#1a1a2e",
