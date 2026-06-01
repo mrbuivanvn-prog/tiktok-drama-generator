@@ -46,6 +46,7 @@ class TikTokDramaGUI:
             'google_trends': tk.BooleanVar(value=self.config.get('sources', {}).get('google_trends', {}).get('enabled', False)),
             'reddit': tk.BooleanVar(value=self.config.get('sources', {}).get('reddit', {}).get('enabled', False)),
             'twitter': tk.BooleanVar(value=self.config.get('sources', {}).get('twitter', {}).get('enabled', False)),
+            'facebook': tk.BooleanVar(value=self.config.get('sources', {}).get('facebook', {}).get('enabled', False)),
             'web_scraping': tk.BooleanVar(value=self.config.get('sources', {}).get('web_scraping', {}).get('enabled', True)),
         }
 
@@ -98,6 +99,7 @@ class TikTokDramaGUI:
         ttk.Checkbutton(sources_frame, text="Google Trends", variable=self.selected_sources['google_trends']).pack(anchor='w')
         ttk.Checkbutton(sources_frame, text="Reddit", variable=self.selected_sources['reddit']).pack(anchor='w')
         ttk.Checkbutton(sources_frame, text="X (Twitter)", variable=self.selected_sources['twitter']).pack(anchor='w')
+        ttk.Checkbutton(sources_frame, text="Facebook", variable=self.selected_sources['facebook']).pack(anchor='w')
         ttk.Checkbutton(sources_frame, text="Web scraping", variable=self.selected_sources['web_scraping']).pack(anchor='w')
         
         # Buttons
@@ -233,6 +235,7 @@ class TikTokDramaGUI:
                 'google_trends': GoogleTrendsFetcher,
                 'reddit': RedditFetcher,
                 'twitter': TwitterFetcher,
+                'facebook': FacebookFetcher,
                 'web_scraping': WebScrapingFetcher,
             }
 

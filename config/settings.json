@@ -17,6 +17,13 @@
       "lang": "vi",
       "count": 50
     },
+    "facebook": {
+      "enabled": false,
+      "access_token": "",
+      "pages": [
+        {"name": "Example Page", "id": "page_id_here"}
+      ]
+    },
     "web_scraping": {
       "enabled": true,
       "sites": [
@@ -52,7 +59,7 @@
     "save_generated_ideas": true,
     "idea_format": "txt"
   },
-    "video_creation": {
+  "video_creation": {
     "enabled": true,
     "duration_seconds": 3,
     "resolution": [1080, 1920],

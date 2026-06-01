@@ -192,7 +192,6 @@ class WebScrapingFetcher(TrendFetcher):
                     if not url:
                         continue
                     
-                    # Construct full URL if section is provided
                     full_url = url
                     if section and not url.endswith('/'):
                         full_url += '/' + section
@@ -201,18 +200,12 @@ class WebScrapingFetcher(TrendFetcher):
                     
                     logger.debug(f"Scraping {site_name} from {full_url}")
                     
-                    # Make request
                     response = requests.get(full_url, headers=headers, timeout=10)
                     response.raise_for_status()
                     
-                    # Parse HTML
                     soup = BeautifulSoup(response.content, 'html.parser')
                     
-                    # Extract headlines - this is site-specific and would need customization
-                    # For now, we'll look for common headline tags
                     headlines = []
-                    
-                    # Try common selectors for headlines
                     selectors = [
                         'h1', 'h2', 'h3',
                         '.title', '.headline', '.post-title',
@@ -222,17 +215,14 @@ class WebScrapingFetcher(TrendFetcher):
                     
                     for selector in selectors:
                         elements = soup.select(selector)
-                        for elem in elements[:5]:  # Limit per selector
+                        for elem in elements[:5]:
                             text = elem.get_text(strip=True)
                             if text and len(text) > 10 and len(text) < 200:
                                 headlines.append(text)
                     
-                    # Remove duplicates and limit
                     headlines = list(dict.fromkeys(headlines))[:10]
                     
-                    # Create trend items from headlines
                     for headline in headlines:
-                        # Filter for drama/trending related content
                         if any(keyword in headline.lower() for keyword in 
                                ['drama', 'hot', 'trend', 'viral', 'tiktok', 'giai tri', 'sao']):
                             item = self._create_trend_item(
@@ -250,7 +240,6 @@ class WebScrapingFetcher(TrendFetcher):
                     logger.error(f"Error scraping {site.get('name', 'unknown site')}: {e}")
                     continue
                 
-                # Be respectful with requests
                 time.sleep(random.uniform(1, 3))
             
             logger.info(f"Fetched {len(trends)} trends from web scraping")
@@ -261,12 +250,83 @@ class WebScrapingFetcher(TrendFetcher):
             return []
 
 
+class FacebookFetcher(TrendFetcher):
+    """Fetch trends from Facebook."""
+    
+    def __init__(self, config):
+        super().__init__(config)
+        self.enabled = config.get('facebook', {}).get('enabled', False)
+        self.pages = config.get('facebook', {}).get('pages', [])
+        self.access_token = config.get('facebook', {}).get('access_token', '')
+    
+    def fetch(self) -> List[TrendItem]:
+        if not self.enabled:
+            return []
+        
+        try:
+            logger.info(f"Fetching Facebook trends from {len(self.pages)} pages")
+            
+            trends = []
+            
+            if self.access_token and self.pages:
+                for page in self.pages:
+                    try:
+                        page_id = page.get('id', '')
+                        page_name = page.get('name', page_id)
+                        
+                        url = f"https://graph.facebook.com/v18.0/{page_id}/posts"
+                        params = {
+                            'access_token': self.access_token,
+                            'fields': 'message,created_time,likes.summary(true)',
+                            'limit': 10
+                        }
+                        
+                        response = requests.get(url, params=params, timeout=10)
+                        response.raise_for_status()
+                        data = response.json()
+                        
+                        posts = data.get('data', [])
+                        for post in posts:
+                            message = post.get('message', '')
+                            if message and len(message) > 10:
+                                likes = post.get('likes', {}).get('summary', {}).get('total_count', 0)
+                                score = min(100, int(likes / 10) + 50)
+                                
+                                item = self._create_trend_item(
+                                    topic=message[:200],
+                                    score=score,
+                                    metadata={
+                                        'page': page_name,
+                                        'likes': likes,
+                                        'source': 'facebook'
+                                    }
+                                )
+                                trends.append(item)
+                        
+                        time.sleep(1)
+                    
+                    except Exception as e:
+                        logger.error(f"Error fetching from Facebook page {page.get('name', page_id)}: {e}")
+                        continue
+            else:
+                logger.warning("Facebook fetcher enabled but no access_token or pages configured")
+                logger.info("Add access_token and pages to config/settings.json under 'facebook' section")
+            
+            logger.info(f"Fetched {len(trends)} trends from Facebook")
+            return trends
+            
+        except Exception as e:
+            logger.error(f"Error in Facebook fetcher: {e}")
+            return []
+
+
 def create_fetcher(fetcher_type: str, config: Dict) -> TrendFetcher:
     """Factory function to create fetcher instances."""
     fetchers = {
         'google_trends': GoogleTrendsFetcher,
         'reddit': RedditFetcher,
         'twitter': TwitterFetcher,
+        'facebook': FacebookFetcher,
         'web_scraping': WebScrapingFetcher
     }
     
@@ -281,7 +341,7 @@ def fetch_all_trends(config: Dict) -> List[TrendItem]:
     """Fetch trends from all enabled sources."""
     all_trends = []
     
-    fetcher_types = ['google_trends', 'reddit', 'twitter', 'web_scraping']
+    fetcher_types = ['google_trends', 'reddit', 'twitter', 'facebook', 'web_scraping']
     
     for fetcher_type in fetcher_types:
         fetcher_config = config.get(fetcher_type, {})
