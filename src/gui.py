@@ -9,8 +9,14 @@ import subprocess
 import sys
 from typing import Optional
 
-from .utils import load_config, get_today_string, VideoIdea
-from .generator import IdeaGenerator, fetch_all_trends
+from .utils import load_config, save_data, get_today_string, VideoIdea, TrendItem
+from .generator import IdeaGenerator
+from .fetcher import (
+    GoogleTrendsFetcher,
+    RedditFetcher,
+    TwitterFetcher,
+    WebScrapingFetcher,
+)
 from .video_creator import VideoCreator
 
 
@@ -32,13 +38,30 @@ class TikTokDramaGUI:
         self.style.configure('Header.TLabel', font=('Arial', 16, 'bold'), foreground='#ff6b6b')
         self.style.configure('Subheader.TLabel', font=('Arial', 12), foreground='#4ecdc4')
         
-        # Data
+         # Data
         self.config = load_config()
         self.current_ideas = []
         self.video_paths = []
-        
+        self.selected_sources = {
+            'google_trends': tk.BooleanVar(value=self.config.get('sources', {}).get('google_trends', {}).get('enabled', False)),
+            'reddit': tk.BooleanVar(value=self.config.get('sources', {}).get('reddit', {}).get('enabled', False)),
+            'twitter': tk.BooleanVar(value=self.config.get('sources', {}).get('twitter', {}).get('enabled', False)),
+            'web_scraping': tk.BooleanVar(value=self.config.get('sources', {}).get('web_scraping', {}).get('enabled', True)),
+        }
+
+        self._configure_icon()
         self._build_ui()
         self._load_today_data()
+
+    def _configure_icon(self):
+        """Set app icon if available."""
+        icon_path = Path('assets/icon.png')
+        if icon_path.exists():
+            try:
+                img = tk.PhotoImage(file=str(icon_path))
+                self.root.iconphoto(True, img)
+            except Exception:
+                pass
     
     def _build_ui(self):
         """Build the GUI interface."""
@@ -67,6 +90,15 @@ class TikTokDramaGUI:
         self.date_var = tk.StringVar(value=get_today_string())
         date_entry = ttk.Entry(date_frame, textvariable=self.date_var, width=15)
         date_entry.pack(fill='x', pady=2)
+
+        # Social media source selection
+        ttk.Label(left_panel, text="🌐 Nguồn tìm trend / drama:", font=('Arial', 11, 'bold'), foreground='#4ecdc4').pack(anchor='w', pady=(15, 5))
+        sources_frame = ttk.Frame(left_panel)
+        sources_frame.pack(fill='x', pady=5)
+        ttk.Checkbutton(sources_frame, text="Google Trends", variable=self.selected_sources['google_trends']).pack(anchor='w')
+        ttk.Checkbutton(sources_frame, text="Reddit", variable=self.selected_sources['reddit']).pack(anchor='w')
+        ttk.Checkbutton(sources_frame, text="X (Twitter)", variable=self.selected_sources['twitter']).pack(anchor='w')
+        ttk.Checkbutton(sources_frame, text="Web scraping", variable=self.selected_sources['web_scraping']).pack(anchor='w')
         
         # Buttons
         btn_frame = ttk.Frame(left_panel)
@@ -187,10 +219,33 @@ class TikTokDramaGUI:
         """Generate new trends and ideas."""
         self.status_label.config(text="🔄 Đang tạo trend...")
         self.root.update()
-        
+
         try:
-            # Fetch trends
-            trends = fetch_all_trends(self.config)
+            selected = {name: var.get() for name, var in self.selected_sources.items()}
+            active_sources = [name for name, flag in selected.items() if flag]
+
+            if not active_sources:
+                messagebox.showwarning("Cảnh báo", "Hãy chọn ít nhất 1 nguồn tìm trend / drama.")
+                self.status_label.config(text="⚠️ Chưa chọn nguồn")
+                return
+
+            fetcher_map = {
+                'google_trends': GoogleTrendsFetcher,
+                'reddit': RedditFetcher,
+                'twitter': TwitterFetcher,
+                'web_scraping': WebScrapingFetcher,
+            }
+
+            trends = []
+            for source_name in active_sources:
+                try:
+                    fetcher = fetcher_map[source_name](self.config)
+                    trends.extend(fetcher.fetch())
+                except Exception as fetch_error:
+                    messagebox.showerror("Lỗi nguồn", f"Lỗi lấy trend từ {source_name}:\n{fetch_error}")
+                    self.status_label.config(text="❌ Lỗi nguồn")
+                    return
+
             if not trends:
                 from .utils import TrendItem
                 fallback_topics = [
@@ -209,7 +264,7 @@ class TikTokDramaGUI:
                 self.ideas_listbox.insert(tk.END, f"{i}. {idea['idea']}")
             
             self.status_label.config(text=f"✅ Đã tạo {len(self.current_ideas)} ý tưởng")
-            messagebox.showinfo("Thành công", f"Đã tạo {len(self.current_ideas)} ý tưởng video!")
+            messagebox.showinfo("Thành công", f"Đã tạo {len(self.current_ideas)} ý tưởng video từ {', '.join(active_sources)}!")
             
         except Exception as e:
             messagebox.showerror("Lỗi", f"Không thể tạo trend:\n{e}")

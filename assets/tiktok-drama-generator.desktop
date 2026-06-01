@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=TikTok Drama Generator
+Comment=Tạo video TikTok tự động từ trend hằng ngày
+Exec=/home/k3/TIKTOK/run_gui.sh
+Icon=/home/k3/TIKTOK/assets/icon.png
+Terminal=false
+Type=Application
+Categories=Development;Video;Utility;
+StartupNotify=true
