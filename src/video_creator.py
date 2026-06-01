@@ -8,7 +8,7 @@ import logging
 
 # MoviePy v2+ imports
 from moviepy.video.VideoClip import TextClip, ColorClip
-from moviepy.video.compositing import CompositeVideoClip
+from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
 from moviepy.audio.io import AudioFileClip
 
 from .utils import logger, VideoIdea
@@ -88,23 +88,28 @@ class VideoCreator:
                     vertical_align='center'
                 )
 
-            # Create background clip
-            # Convert hex color to RGB
             hex_color = self.background_color.lstrip('#')
             rgb_color = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-             bg_clip = ColorClip(
-                 size=self.resolution,
-                 color=rgb_color,
-                 duration=self.duration
-             )
 
-             logger.debug(f"Background clip created: {bg_clip}")
+            bg_clip = ColorClip(
+                size=self.resolution,
+                color=rgb_color,
+                duration=self.duration
+            )
 
-             # Combine clips
-             video = CompositeVideoClip([bg_clip, txt_clip])
-             # For testing, skip the rest and return a dummy path
-             return "/dummy/path.mp4"
-            
+            video = CompositeVideoClip([bg_clip, txt_clip])
+
+            video.write_videofile(
+                str(output_path),
+                fps=self.fps,
+                codec='libx264',
+                audio_codec='aac',
+                temp_audiofile='temp-audio.m4a',
+                remove_temp=True
+            )
+
+            return str(output_path)
+
         except Exception as e:
             logger.error(f"Error creating video: {e}")
             raise
